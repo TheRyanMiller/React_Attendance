@@ -87,7 +87,7 @@ class App extends Component {
         let nameUpdatedEvent = instance.NameUpdated({}, { fromBlock: 'latest', toBlock: 'latest' });
         let winningsCollected = instance.WinningsCollected({}, { fromBlock: 'latest', toBlock: 'latest' });
         contributedEvent.watch( (err, response) => {
-          console.log("contrib: ", response);
+          console.log("contribute: ", response);
           this.setState({isLoading: false});
           if (!this.addTxnId(response.transactionHash)){
             let newAttendee = {};
@@ -109,6 +109,7 @@ class App extends Component {
           
         });
         winnerEvent.watch( (err, response) => {
+          console.log("winner: ", response);
           this.setState({isLoading: false});
           if (!this.addTxnId(response.transactionHash)){
             this.setState({
@@ -121,6 +122,7 @@ class App extends Component {
           this.lookupUserWinnings();
         });
         validatedEvent.watch( (err, response) => {
+          console.log("validate: ", response);
           this.setState({isLoading: false});
           if (!this.addTxnId(response.transactionHash)){
             let attendees = [...this.state.attendees];
@@ -135,10 +137,12 @@ class App extends Component {
           
         });
         nameUpdatedEvent.watch( (err, response) => {
+          console.log("nameupdate: ", response);
           this.setState({isLoading: false});
           console.log(response,err);    
         });
         winningsCollected.watch( (err, response) => {
+          console.log("collected: ", response);
           this.setState({
             isLoading: false,
             loggedInUserWinnings: 0
@@ -314,7 +318,7 @@ class App extends Component {
     let validatee = row.address;
     let contractInstance;
     const attendanceRewarder = this.state.contract;
-
+    console.log("Clicked Validate");
     this.state.web3.eth.getAccounts((error, accounts) => {
       attendanceRewarder.deployed().then((instance) => {
         this.setState({isLoading: true});
@@ -473,7 +477,7 @@ class App extends Component {
           <Contribute hasContributed={this.state.hasContributed} 
             setName={this.setName} 
             setAmount={this.setAmount}
-            amountToContribute={this.state.amountToContribute} 
+            amountToContribute={this.state.amountToContribute}
             clicked={ this.contribute.bind(this) } />
           
         </div>

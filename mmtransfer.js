@@ -36,7 +36,7 @@ function gb(address){
 web3.eth.sendTransaction(
   {from:web3.eth.accounts[0],
   to: mmAccts[0],
-  value: 99400000000000000000, 
+  value: 99000000000000000000, 
       }, function(err, transactionHash) {
 if (!err) console.log(transactionHash + " success"); 
 else console.log(err)

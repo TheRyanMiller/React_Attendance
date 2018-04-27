@@ -1,0 +1,3 @@
+\n {"jsonrpc": "2.0", "method": "generateSignedIntegers", 
+"params": { "apiKey": "${[decrypt] BA0ax0jthPisZ54j4te1UNgUuyZyil86nuJycMOllu5/O3NqXaLKFxaLg98v7PZUGAbmvFHkrqf/ScymyzL/I/g+qZfpBE+iQny3kwhMoDyFHKg/E1KJehYp65vY1ZTYBVk1iRiL2WceeFdswlsfSUkpceNp}", "n": 1, "min": 1, "max": 1000, "replacement": true, 
+"base": 10${[identity] }, "id": 14215${[identity] }}

@@ -31,10 +31,12 @@ contract AttendanceRewarder {
   mapping(address => Attendee) public attendees;
   address[] public attendeeList; //map addresses to their winnings balance
   address[] public eventWinners; //track winners of each event
+  address[] public validAttendees; //list of validated attendees
   uint[] public eventEndValues;
   uint public totalUnclaimedValue; //total unclaimed value in the contract (available only to winners)
   uint public currentEventValue; //value of current meetup
   address private owner;
+  uint private MIN_VALIDATIONS = 1;
 
   modifier onlyOwner {
     require(msg.sender == owner);
@@ -130,6 +132,9 @@ contract AttendanceRewarder {
     require (hasAlreadyValidated(attendeeAddress, msg.sender) == false); // check if already validated this address before
     attendees[attendeeAddress].validators[msg.sender].hasAlreadyValidated = true;
     attendees[attendeeAddress].validators[msg.sender].listPointer = attendees[attendeeAddress].validatorList.push(msg.sender) - 1;
+    if(attendees[attendeeAddress].validatorList.length == MIN_VALIDATIONS) {
+      validAttendees.push(attendeeAddress);
+    }
     Validated(eventId, msg.sender, attendeeAddress);
     return true;
   }
@@ -147,6 +152,7 @@ contract AttendanceRewarder {
   function payout() public {
     require (attendeeList.length>0);
     require (isAttendee(msg.sender));
+    require (validAttendees.length > 0);
     address winner = calculateWinner(msg.sender);
     attendees[winner].unclaimedValue += currentEventValue;
     attendees[winner].eventsWon.push(eventId);
@@ -159,6 +165,7 @@ contract AttendanceRewarder {
 
   function resetAttendance() private returns(bool success) {
     attendeeList.length = 0;
+    validAttendees.length = 0;
     currentEventValue = 0;
     eventId++;
     return true;
@@ -173,7 +180,8 @@ contract AttendanceRewarder {
   }
 
   function calculateWinner(address eventEnder) private view returns(address) {
-    address winner = attendeeList[0];
+    uint random  = uint(keccak256(block.timestamp)) % validAttendees.length;
+    address winner = attendeeList[random];
     return winner;
   }
 

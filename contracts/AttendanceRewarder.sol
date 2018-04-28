@@ -1,6 +1,8 @@
-pragma solidity ^0.4.19;
+pragma solidity ^0.4.20;
 
-contract AttendanceRewarder {
+import "./Oraclize.sol";
+
+contract AttendanceRewarder is usingOraclize {
 
   struct Attendee {
     string name;
@@ -25,6 +27,8 @@ contract AttendanceRewarder {
   event Validated(uint indexed eventId, address indexed validator, address indexed validatee);
   event NameUpdated(address indexed updatedAddress, string newName);
   event WinningsCollected(address indexed winner, uint indexed value);
+  event LogOraclizeQuery(string description);
+  event LogRandomResult(uint number);
 
 
   uint eventId; //start at 0, iterate up for each event
@@ -37,6 +41,10 @@ contract AttendanceRewarder {
   uint public currentEventValue; //value of current meetup
   address private owner;
   uint private MIN_VALIDATIONS = 1;
+  bool private useOracle = true;
+  mapping(bytes32 => bool) validIds; //Used for validating call/reply Oraclize queries by ID
+  uint constant gasForOraclize = 175000;
+  uint public randomNumber;
 
   modifier onlyOwner {
     require(msg.sender == owner);
@@ -153,14 +161,19 @@ contract AttendanceRewarder {
     require (attendeeList.length>0);
     require (isAttendee(msg.sender));
     require (validAttendees.length > 0);
-    address winner = calculateWinner(msg.sender);
-    attendees[winner].unclaimedValue += currentEventValue;
-    attendees[winner].eventsWon.push(eventId);
-    eventEndValues.push(currentEventValue);
-    eventWinners.push(winner);
-    Winner(eventId, msg.sender, winner, currentEventValue);
-    currentEventValue = 0;
-    resetAttendance();
+    if(!useOracle){ //Check if we should use Oracle or block timestamp for randomness
+      address winner = calculateWinner(msg.sender);
+      attendees[winner].unclaimedValue += currentEventValue;
+      attendees[winner].eventsWon.push(eventId);
+      eventEndValues.push(currentEventValue);
+      eventWinners.push(winner);
+      Winner(eventId, msg.sender, winner, currentEventValue);
+      currentEventValue = 0;
+      resetAttendance();
+    }
+    else{
+      calculateOracleWinner(msg.sender);
+    }
   }
 
   function resetAttendance() private returns(bool success) {
@@ -180,10 +193,50 @@ contract AttendanceRewarder {
   }
 
   function calculateWinner(address eventEnder) private view returns(address) {
-    uint random  = uint(keccak256(block.timestamp)) % validAttendees.length;
-    address winner = attendeeList[random];
+    //Check if we should use Oracle or block timestamp for randomness
+    uint randomNumber  = uint(keccak256(block.timestamp)) % validAttendees.length;
+    address winner = attendeeList[randomNumber];
     return winner;
   }
+
+  function calculateOracleWinner(address eventEnder) private view returns(address) {    
+    require(msg.value >= 0.004 ether); // 200,000 gas * 20 Gwei = 0.004 ETH
+    /*
+    bytes32 queryId = oraclize_query(
+      "nested", 
+      "[URL] ['json(https://api.random.org/json-rpc/1/invoke).result.random[\"data\"]', '\\n{\"jsonrpc\": \"2.0\", \"method\": \"generateIntegers\", \"params\": { \"apiKey\": \"${[decrypt] BA0ax0jthPisZ54j4te1UNgUuyZyil86nuJycMOllu5/O3NqXaLKFxaLg98v7PZUGAbmvFHkrqf/ScymyzL/I/g+qZfpBE+iQny3kwhMoDyFHKg/E1KJehYp65vY1ZTYBVk1iRiL2WceeFdswlsfSUkpceNp}\", \"n\": 1,\"min\": 0, \"max\":'"+attendeeList.length-1+"', \"replacement\": true }, \"id\": 14215${[identity] \"}\"}']",
+      gasForOraclize
+    );
+    */
+    uint maxNumber = attendeeList.length-1;
+    bytes32 queryId = oraclize_query(
+        "nested", 
+        "[URL] ['json(https://api.random.org/json-rpc/1/invoke).result.random[\"data\"]', '\\n{\"jsonrpc\": \"2.0\", \"method\": \"generateIntegers\", \"params\": { \"apiKey\": \"${[decrypt] BA0ax0jthPisZ54j4te1UNgUuyZyil86nuJycMOllu5/O3NqXaLKFxaLg98v7PZUGAbmvFHkrqf/ScymyzL/I/g+qZfpBE+iQny3kwhMoDyFHKg/E1KJehYp65vY1ZTYBVk1iRiL2WceeFdswlsfSUkpceNp}\", \"n\": 1,\"min\": 0, \"max\":uint2str(maxNumber), \"replacement\": true }, \"id\": 14215${[identity] \"}\"}']",
+        gasForOraclize
+    );
+    LogOraclizeQuery("Oraclize query was sent, standing by for the answer..");
+    validIds[queryId] = true;
+  }
+
+  function __callback(bytes32 queryId, string result, bytes proof) public {
+        // only allow Oraclize to call this function
+        require(msg.sender == oraclize_cbAddress());
+        
+        // set random number, result is of the form: [268]
+        // if we also returned serialNumber, form would be "[3008768, [268]]"
+        randomNumber = parseInt(result); 
+        LogRandomResult(randomNumber);
+        
+        validIds[queryId] = false; // this ensures the callback for a given queryID never called twice
+        address winner = attendeeList[randomNumber];
+        attendees[winner].unclaimedValue += currentEventValue;
+        attendees[winner].eventsWon.push(eventId);
+        eventEndValues.push(currentEventValue);
+        eventWinners.push(winner);
+        Winner(eventId, msg.sender, winner, currentEventValue);
+        currentEventValue = 0;
+        resetAttendance();
+    }
 
   function getEventId() public view returns(uint) {
     return eventId;
